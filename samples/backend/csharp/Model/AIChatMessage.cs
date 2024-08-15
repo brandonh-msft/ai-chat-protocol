@@ -1,9 +1,8 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the MIT License.
 
-using System.Text.Json.Serialization;
-
 namespace Backend.Model;
+using System.Text.Json.Serialization;
 
 public struct AIChatMessage
 {
