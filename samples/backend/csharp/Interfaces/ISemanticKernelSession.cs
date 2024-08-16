@@ -1,12 +1,12 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the MIT License.
 
+namespace Backend.Interfaces;
 using Backend.Model;
 
-namespace Backend.Interfaces;
 public interface ISemanticKernelSession
 {
     Guid Id { get; }
-    Task<AIChatCompletion> ProcessRequest(AIChatRequest request);
-    IAsyncEnumerable<AIChatCompletionDelta> ProcessStreamingRequest(AIChatRequest request);
+    Task<AIChatCompletion> ProcessRequestAsync(AIChatRequest request);
+    IAsyncEnumerable<AIChatCompletionDelta> ProcessStreamingRequestAsync(AIChatRequest request);
 }

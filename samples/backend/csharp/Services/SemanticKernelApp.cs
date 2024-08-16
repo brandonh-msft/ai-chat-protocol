@@ -2,29 +2,34 @@
 // Licensed under the MIT License.
 
 using System.Text;
+
 using Azure.Identity;
-using Microsoft.SemanticKernel;
 
 using Backend.Interfaces;
 using Backend.Model;
 
+using Microsoft.Extensions.Configuration;
+using Microsoft.SemanticKernel;
+
 namespace Backend.Services;
 
 internal record LLMConfig;
-internal record OpenAIConfig(string Model, string Key): LLMConfig;
-internal record AzureOpenAIConfig(string Deployment, string Endpoint): LLMConfig;
+internal record OpenAIConfig(string Model, string Key) : LLMConfig;
+internal record AzureOpenAIConfig(string Deployment, string Endpoint) : LLMConfig;
 
 internal struct SemanticKernelConfig
 {
     internal LLMConfig LLMConfig { get; private init; }
 
-    internal static async Task<SemanticKernelConfig> CreateAsync(ISecretStore secretStore, CancellationToken cancellationToken)
+    internal static SemanticKernelConfig Create(IConfiguration config)
     {
-        var useAzureOpenAI = await secretStore.GetSecretAsync("UseAzureOpenAI", cancellationToken).ContinueWith(task => bool.Parse(task.Result));
-        if (useAzureOpenAI)
+        if (bool.TryParse(config["UseAzureOpenAI"], out var b) && b)
         {
-            var azureDeployment = await secretStore.GetSecretAsync("AzureDeployment", cancellationToken);
-            var azureEndpoint = await secretStore.GetSecretAsync("AzureEndpoint", cancellationToken);
+            var azureDeployment = config["AzureDeployment"];
+            ArgumentException.ThrowIfNullOrWhiteSpace(azureDeployment, "AzureDeployment");
+
+            var azureEndpoint = config["AzureEndpoint"];
+            ArgumentException.ThrowIfNullOrWhiteSpace(azureEndpoint, "AzureEndpoint");
 
             return new SemanticKernelConfig
             {
@@ -33,8 +38,12 @@ internal struct SemanticKernelConfig
         }
         else
         {
-            var apiKey = await secretStore.GetSecretAsync("APIKey", cancellationToken);
-            var model = await secretStore.GetSecretAsync("Model", cancellationToken);
+            var apiKey = config["APIKey"];
+            ArgumentException.ThrowIfNullOrWhiteSpace(apiKey, "APIKey");
+
+            var model = config["Model"];
+            ArgumentException.ThrowIfNullOrWhiteSpace(model, "Model");
+
             return new SemanticKernelConfig
             {
                 LLMConfig = new OpenAIConfig(model, apiKey),
@@ -51,57 +60,49 @@ internal class SemanticKernelSession : ISemanticKernelSession
 
     public Guid Id { get; private set; }
 
-    internal SemanticKernelSession(Kernel kernel, IStateStore<string> stateStore, Guid sessionId)
+    internal SemanticKernelSession(IConfiguration config, Kernel kernel, IStateStore<string> stateStore, Guid sessionId)
     {
         _kernel = kernel;
         _stateStore = stateStore;
-        _chatFunction = _kernel.CreateFunctionFromPrompt(prompt);
-        Id = sessionId;
+        _chatFunction = _kernel.CreateFunctionFromPrompt(config["SystemPrompt"]!);
+        this.Id = sessionId;
     }
 
-    const string prompt = @"
-        ChatBot can have a conversation with you about any topic.
-        It can give explicit instructions or say 'I don't know' if it does not know the answer.
-
-        {{$history}}
-        User: {{$userInput}}
-        ChatBot:";
-
-    public async Task<AIChatCompletion> ProcessRequest(AIChatRequest message)
+    public async Task<AIChatCompletion> ProcessRequestAsync(AIChatRequest message)
     {
-        var userInput = message.Messages.Last();
-        string history = await _stateStore.GetStateAsync(Id) ?? "";
+        AIChatMessage userInput = message.Messages.Last();
+        string history = await _stateStore.GetStateAsync(this.Id) ?? "";
         /* TODO: Add support for text+image content */
         var arguments = new KernelArguments()
         {
             ["history"] = history,
             ["userInput"] = userInput.Content,
         };
-        var botResponse = await _chatFunction.InvokeAsync(_kernel, arguments);
+        FunctionResult botResponse = await _chatFunction.InvokeAsync(_kernel, arguments);
         var updatedHistory = $"{history}\nUser: {userInput.Content}\nChatBot: {botResponse}";
-        await _stateStore.SetStateAsync(Id, updatedHistory);
+        await _stateStore.SetStateAsync(this.Id, updatedHistory);
         return new AIChatCompletion(Message: new AIChatMessage
         {
             Role = AIChatRole.Assistant,
             Content = $"{botResponse}",
         })
         {
-            SessionState = Id,
+            SessionState = this.Id,
         };
     }
 
-    public async IAsyncEnumerable<AIChatCompletionDelta> ProcessStreamingRequest(AIChatRequest message)
+    public async IAsyncEnumerable<AIChatCompletionDelta> ProcessStreamingRequestAsync(AIChatRequest message)
     {
-        var userInput = message.Messages.Last();
-        string history = await _stateStore.GetStateAsync(Id) ?? "";
+        AIChatMessage userInput = message.Messages.Last();
+        string history = await _stateStore.GetStateAsync(this.Id) ?? "";
         var arguments = new KernelArguments()
         {
             ["history"] = history,
             ["userInput"] = userInput.Content,
         };
-        var streamedBotResponse = _chatFunction.InvokeStreamingAsync(_kernel, arguments);
+        IAsyncEnumerable<StreamingKernelContent> streamedBotResponse = _chatFunction.InvokeStreamingAsync(_kernel, arguments);
         StringBuilder response = new();
-        await foreach (var botResponse in streamedBotResponse)
+        await foreach (StreamingKernelContent botResponse in streamedBotResponse)
         {
             response.Append(botResponse);
             yield return new AIChatCompletionDelta(Delta: new AIChatMessageDelta
@@ -110,31 +111,31 @@ internal class SemanticKernelSession : ISemanticKernelSession
                 Content = $"{botResponse}",
             })
             {
-                SessionState = Id,
+                SessionState = this.Id,
             };
         }
         var updatedHistory = $"{history}\nUser: {userInput.Content}\nChatBot: {response}";
-        await _stateStore.SetStateAsync(Id, updatedHistory);
+        await _stateStore.SetStateAsync(this.Id, updatedHistory);
     }
-
 }
 
 public class SemanticKernelApp : ISemanticKernelApp
 {
-    private readonly ISecretStore _secretStore;
+    private readonly IConfiguration _config;
     private readonly IStateStore<string> _stateStore;
-    private readonly Lazy<Task<Kernel>> _kernel;
+    private readonly Lazy<Kernel> _kernel;
 
-    private async Task<Kernel> InitKernel()
+    private Kernel InitKernel()
     {
-        var config = await SemanticKernelConfig.CreateAsync(_secretStore, CancellationToken.None);
-        var builder = Kernel.CreateBuilder();
+        var config = SemanticKernelConfig.Create(_config);
+        IKernelBuilder builder = Kernel.CreateBuilder();
         if (config.LLMConfig is AzureOpenAIConfig azureOpenAIConfig)
         {
             if (azureOpenAIConfig.Deployment is null || azureOpenAIConfig.Endpoint is null)
             {
                 throw new InvalidOperationException("AzureOpenAI is enabled but AzureDeployment and AzureEndpoint are not set.");
             }
+
             builder.AddAzureOpenAIChatCompletion(azureOpenAIConfig.Deployment, azureOpenAIConfig.Endpoint, new DefaultAzureCredential());
         }
         else if (config.LLMConfig is OpenAIConfig openAIConfig)
@@ -143,36 +144,34 @@ public class SemanticKernelApp : ISemanticKernelApp
             {
                 throw new InvalidOperationException("AzureOpenAI is disabled but Model and APIKey are not set.");
             }
+
             builder.AddOpenAIChatCompletion(openAIConfig.Model, openAIConfig.Key);
         }
         else
         {
             throw new InvalidOperationException("Unsupported LLMConfig type.");
         }
+
         return builder.Build();
     }
 
-    public SemanticKernelApp(ISecretStore secretStore, IStateStore<string> stateStore)
+    public SemanticKernelApp(IConfiguration config, IStateStore<string> stateStore)
     {
-        _secretStore = secretStore;
+        _config = config;
         _stateStore = stateStore;
-        _kernel = new(() => Task.Run(InitKernel));
+        _kernel = new(InitKernel);
     }
 
-    public async Task<ISemanticKernelSession> CreateSession(Guid sessionId)
+    public ISemanticKernelSession CreateSession(Guid sessionId)
     {
-        var kernel = await _kernel.Value;
-        return new SemanticKernelSession(kernel, _stateStore, sessionId);
+        Kernel kernel = _kernel.Value;
+        return new SemanticKernelSession(_config, kernel, _stateStore, sessionId);
     }
 
-    public async Task<ISemanticKernelSession> GetSession(Guid sessionId)
+    public ISemanticKernelSession GetSession(Guid sessionId)
     {
-        var kernel = await _kernel.Value;
-        var state = await _stateStore.GetStateAsync(sessionId);
-        if (state is null)
-        {
-            throw new KeyNotFoundException($"Session {sessionId} not found.");
-        }
-        return new SemanticKernelSession(kernel, _stateStore, sessionId);
+        Kernel kernel = _kernel.Value;
+
+        return new SemanticKernelSession(_config, kernel, _stateStore, sessionId);
     }
 }

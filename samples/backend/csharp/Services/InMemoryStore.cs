@@ -9,7 +9,7 @@ public class InMemoryStore<T> : IStateStore<T>
 
     public Task<T?> GetStateAsync(Guid sessionId)
     {
-        _store.TryGetValue(sessionId, out var state);
+        _store.TryGetValue(sessionId, out T? state);
         return Task.FromResult(state);
     }
 
