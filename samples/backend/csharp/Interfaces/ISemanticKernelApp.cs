@@ -8,6 +8,8 @@ using Microsoft.SemanticKernel;
 public interface ISemanticKernelApp
 {
     Kernel Kernel { get; }
+
     ISemanticKernelSession CreateSession(Guid sessionId);
+
     ISemanticKernelSession GetSession(Guid sessionId);
 }
