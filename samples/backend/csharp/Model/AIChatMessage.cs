@@ -2,8 +2,11 @@
 // Licensed under the MIT License.
 
 namespace Backend.Model;
+
+using System.Diagnostics;
 using System.Text.Json.Serialization;
 
+[DebuggerDisplay("{Role}: {Content}")]
 public struct AIChatMessage
 {
     [JsonPropertyName("content")]
