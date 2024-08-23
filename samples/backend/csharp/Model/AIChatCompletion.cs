@@ -5,7 +5,6 @@ namespace Backend.Model;
 using System.Text.Json.Serialization;
 
 using Microsoft.Extensions.Logging;
-using Microsoft.SemanticKernel.Connectors.OpenAI;
 
 public record AIChatCompletion
 {
@@ -27,15 +26,4 @@ public record AIChatCompletion
 
     [JsonInclude, JsonPropertyName("context"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public BinaryData? Context;
-
-    public static implicit operator AIChatCompletion(OpenAIChatMessageContent openAiCompletion)
-    {
-        return new(
-            new AIChatMessage
-            {
-                Content = openAiCompletion.ToString(),
-                Context = new BinaryData(openAiCompletion.InnerContent),
-                Role = AIChatRole.Assistant
-            });
-    }
 }
