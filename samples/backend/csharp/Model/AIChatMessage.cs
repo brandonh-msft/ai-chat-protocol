@@ -7,8 +7,13 @@ using System.Diagnostics;
 using System.Text.Json.Serialization;
 
 [DebuggerDisplay("{Role}: {Content}")]
-public record struct AIChatMessage(
+public record AIChatMessage(
     [property: JsonPropertyName("content")] string Content,
-    [property: JsonPropertyName("role")] AIChatRole Role,
-    [property: JsonPropertyName("context")] BinaryData? Context = null,
-    [property: JsonPropertyName("files")] IList<AIChatFile>? Files = null);
+    [property: JsonPropertyName("role")] AIChatRole Role)
+{
+    [JsonPropertyName("context")]
+    public BinaryData? Context { get; set; }
+
+    [JsonPropertyName("files")]
+    public IList<AIChatFile>? Files { get; set; }
+}
