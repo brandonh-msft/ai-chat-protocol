@@ -2,13 +2,9 @@
 // Licensed under the MIT License.
 
 namespace Backend.Model;
-using System.Text.Json.Serialization;
-
-public record AIChatRequest([property: JsonPropertyName("messages")] IList<AIChatMessage> Messages)
+public record AIChatRequest(IReadOnlyList<AIChatMessage> Messages)
 {
-    [JsonInclude, JsonPropertyName("sessionState")]
-    public Guid? SessionState;
+    public Guid? SessionState { get; init; }
 
-    [JsonInclude, JsonPropertyName("context")]
-    public BinaryData? Context;
+    public BinaryData? Context { get; init; }
 }
