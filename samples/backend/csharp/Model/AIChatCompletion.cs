@@ -8,6 +8,7 @@ using Microsoft.Extensions.Logging;
 
 public record AIChatCompletion
 {
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "EA0000:Use source generated logging methods for improved performance", Justification = "Can't do this in a linked file")]
     public AIChatCompletion(AIChatMessage message, ILogger? log = null)
     {
         if (message.Role is not AIChatRole.Assistant)
