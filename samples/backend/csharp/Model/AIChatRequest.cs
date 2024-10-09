@@ -2,7 +2,10 @@
 // Licensed under the MIT License.
 
 namespace Backend.Model;
-public record AIChatRequest(IReadOnlyList<AIChatMessage> Messages)
+
+using System.Diagnostics.CodeAnalysis;
+
+public record AIChatRequest([MaybeNull] IReadOnlyList<AIChatMessage> Messages)
 {
     public Guid? SessionState { get; init; }
 
