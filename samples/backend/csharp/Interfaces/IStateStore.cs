@@ -7,7 +7,8 @@ using System.Threading;
 
 public interface IStateStore<T>
 {
-    Task<T?> GetStateAsync(Guid sessionId, CancellationToken cancellationToken = default);
-    Task SetStateAsync(Guid sessionId, T state, CancellationToken cancellationToken = default);
-    Task RemoveStateAsync(Guid sessionId, CancellationToken cancellationToken = default);
+    Task<T?> GetAsync(Guid sessionId, CancellationToken cancellationToken = default);
+    Task<T> GetOrCreateAsync(Guid sessionId, T valueIfNotFound, CancellationToken cancellationToken = default);
+    Task SetAsync(Guid sessionId, T state, CancellationToken cancellationToken = default);
+    Task RemoveAsync(Guid sessionId, CancellationToken cancellationToken = default);
 }
