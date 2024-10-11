@@ -2,4 +2,10 @@
 // Licensed under the MIT License.
 
 namespace Backend.Model;
-public record struct AIChatFile(string Filename, string ContentType, BinaryData Data);
+
+using System.Text.Json;
+
+public record struct AIChatFile(string Filename, string ContentType, BinaryData Data)
+{
+    readonly public override string ToString() => JsonSerializer.Serialize(this);
+}

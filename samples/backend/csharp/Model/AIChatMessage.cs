@@ -4,6 +4,7 @@
 namespace Backend.Model;
 
 using System.Diagnostics;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 
 [DebuggerDisplay("{Role}: {Content}")]
@@ -16,4 +17,6 @@ public record AIChatMessage(
 
     [JsonPropertyName("files")]
     public IList<AIChatFile>? Files { get; set; }
+
+    public override string ToString() => JsonSerializer.Serialize(this);
 }

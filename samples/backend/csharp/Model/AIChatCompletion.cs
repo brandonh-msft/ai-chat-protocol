@@ -2,6 +2,8 @@
 // Licensed under the MIT License.
 
 namespace Backend.Model;
+
+using System.Text.Json;
 using System.Text.Json.Serialization;
 
 using Microsoft.Extensions.Logging;
@@ -27,4 +29,5 @@ public record AIChatCompletion
 
     [JsonInclude, JsonPropertyName("context"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public BinaryData? Context;
+    public override string ToString() => JsonSerializer.Serialize(this);
 }
