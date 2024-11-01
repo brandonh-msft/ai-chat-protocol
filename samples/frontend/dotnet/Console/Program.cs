@@ -16,4 +16,12 @@ b.Services
     .AddHostedService<Repl>()
     .AddAiChatProtocolClient();
 
-b.Build().Run();
+CancellationTokenSource cancellationTokenSource = new();
+System.Console.CancelKeyPress += (_, args) =>
+{
+    cancellationTokenSource.Cancel();
+
+    args.Cancel = true;
+};
+
+await b.Build().RunAsync(cancellationTokenSource.Token);
