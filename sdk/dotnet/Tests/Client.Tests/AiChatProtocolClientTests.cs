@@ -4,6 +4,8 @@ using Backend.Model;
 
 using Client;
 
+using Microsoft.Extensions.Options;
+
 using Moq;
 using Moq.AutoMock;
 using Moq.Protected;
@@ -37,10 +39,11 @@ public class AiChatProtocolClientTests
                 return expectedResponse;
             });
 
-        mock.Use(new HttpClient(handlerMock.Object));
+        mock.GetMock<IHttpClientFactory>().Setup(f => f.CreateClient(AiChatProtocolClient.HttpClientName))
+            .Returns(() => new HttpClient(handlerMock.Object));
     }
 
-    public AiChatProtocolClientTests() => mock.Use(_config);
+    public AiChatProtocolClientTests() => mock.Use(Options.Create(_config));
 
     [Fact]
     public async Task CompleteAsync_ShouldReturnAIChatCompletion_WhenRequestIsSuccessful()
@@ -70,7 +73,7 @@ public class AiChatProtocolClientTests
             StatusCode = HttpStatusCode.BadRequest
         });
 
-        var client = mock.Get<AiChatProtocolClient>();
+        var client = mock.CreateInstance<AiChatProtocolClient>();
 
         await Assert.ThrowsAsync<HttpRequestException>(() => client.CompleteAsync(new([]), default));
     }
